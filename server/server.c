@@ -85,49 +85,73 @@ int main() {
         return 1;
     }
 
+    fd_set master;
+    FD_ZERO(&master);
+    FD_SET(socket_listen, &master);
+    SOCKET max_socket = socket_listen;
+
     printf("Waiting for connection...\n");
-    struct sockaddr_storage client_address; // stores info about connecting client
-    socklen_t client_len = sizeof(client_address);
-    SOCKET socket_client = accept(socket_listen,
-                            (struct sockaddr*) &client_address, &client_len);
-    if (!ISVALIDSOCKET(socket_client)) {
-        fprintf(stderr, "accept() failed. (%d)\n", GETSOCKETERRNO());
-        return 1;
-    }
-    FILE* log_file;
-    if (!(log_file = fopen("./log.txt", "a"))) {
-        printf("fopen file for logging connections failed\n");
-    } else {
-        /* logging a client address to the log.txt: */
-        char address_buffer[100];
-        getnameinfo((struct sockaddr*)&client_address, client_len, address_buffer, 
-                    sizeof(address_buffer), 0, 0, NI_NUMERICHOST);
-        fprintf(log_file, "%s\n", address_buffer);
-        fclose(log_file);
-    }
+    while(1) {
+        fd_set reads;
+        reads = master;
+        if (select(max_socket+1, &reads, 0, 0, 0) < 0) {
+            fprintf(stderr, "select() failed. (%d)\n", GETSOCKETERRNO());
+            return 1;
+        }
+        int is_set = 0;
 
-    printf("Reading message...\n");
-    char message[1024];
-    int bytes_received = recv(socket_client, message, 1024, 0);
-    printf("Received %d chars. message: %.*s", bytes_received, bytes_received, message);
+        for (SOCKET curr_sock = 0; curr_sock <= max_socket; ++curr_sock) {
+            if (FD_ISSET(curr_sock, &reads)) {
+                if (curr_sock == socket_listen) {
+                    is_set = 1;
+                    struct sockaddr_storage client_address;
+                    socklen_t client_len = sizeof(client_address);
+                    SOCKET socket_client = accept(socket_listen
+                                            , (struct sockaddr*) &client_address
+                                            , &client_len);
+                    if (!ISVALIDSOCKET(socket_client)) {
+                        fprintf(stderr, "accept() failed. (%d)\n", GETSOCKETERRNO());
+                        return 1;
+                    }
 
-    printf("Sending status...\n");
-    const char *status =
-        "HTTP/1.1 200 OK\r\n"
-        "Connection: close\r\n"
-        "Content-Type: text/plain\r\n\r\n"
-        "Message received, ";
-    send(socket_client, status, strlen(status), 0);
-    const char* meeting = "Privet";
-    send(socket_client, meeting, strlen(meeting), 0);
+                    FD_SET(socket_client, &master);
+                    if (socket_client > max_socket)
+                        max_socket = socket_client;
 
-    printf("Closing connection...\n");
-    CLOSESOCKET(socket_client);
+                    char address_buffer[100];
+                    getnameinfo((struct sockaddr*) &client_address
+                                , client_len, address_buffer
+                                , sizeof(address_buffer), 0, 0, NI_NUMERICHOST);
+                    printf("New connection from %s\n", address_buffer);
+                    break;
+                } else {
+                    is_set = 1;
+                    char read[1024];
+                    int bytes_received = recv(curr_sock, read, 1024, 0);
+                    if (bytes_received < 1) {
+                        FD_CLR(curr_sock, &master);
+                        CLOSESOCKET(curr_sock);
+                        break;
+                    }
+                    SOCKET j;
+                    for (j = 1; j <= max_socket; ++j) {
+                        if (FD_ISSET(j, &master)) {
+                            if (j == socket_listen || j == curr_sock)
+                                continue;
+                            else
+                                send(j, read, bytes_received, 0);
+                        }
+                    }
+                    int bytes_sent = send(curr_sock, read, bytes_received, 0);
+                    break;
+                }
+            }// FD_ISSET()
+        } // for (SOCKET curr_sock = ...);
 
-    printf("Closing listening socket...\n");
+        if (!is_set) printf("socket wasn't found");
+    } // while(1)
+
     CLOSESOCKET(socket_listen);
-
-
     #if defined(_WIN32) // for windows, to clean up Winsock
         WSACleanup();
     #endif

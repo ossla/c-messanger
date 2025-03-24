@@ -71,7 +71,7 @@ int main(int argc, char* argv[]) {
         printf("%s %s\n", address_buffer, service_buffer); 
     }
 
-    printf("Creating socket");
+    printf("Creating socket\n");
     SOCKET socket_peer = socket(peer_address->ai_family, peer_address->ai_socktype
                                 , peer_address->ai_protocol);
     if (!ISVALIDSOCKET(socket_peer)) {
@@ -79,7 +79,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    printf("Connecting...");
+    printf("Connecting...\n");
      /* This call to connect() is extremely similar to how we called bind(). Where bind() associates a socket with a local address, connect()
         associates a socket with a remote address and initiates the TCP connection */
     if (connect(socket_peer, peer_address->ai_addr
@@ -90,9 +90,11 @@ int main(int argc, char* argv[]) {
     freeaddrinfo(peer_address);
 
     printf("Connected\n");
-    printf("To send data, endter text followed by enter.\n");
+    printf("To send data, enter text followed by enter.\n");
     /* If new data comes from the terminal, we send it over the socket. 
        If new data is read from the socket, we print it out to the terminal. */
+
+
     while(1) {
         fd_set reads;
         FD_ZERO(&reads); // зануляем
@@ -121,7 +123,7 @@ int main(int argc, char* argv[]) {
                 printf("Connection closed by peer. \n");
                 break;
             }
-            printf("Received (%d bytes): %.*s", bytes_received, bytes_received, read);
+            printf("Received (%d bytes): %.*s\n", bytes_received, bytes_received, read);
         }
 
 #if defined(_WIN32)
@@ -138,7 +140,7 @@ int main(int argc, char* argv[]) {
         }
     }// while(1)
 
-    printf("Closing socket...");
+    printf("Closing socket...\n");
     CLOSESOCKET(socket_peer);
 
     #if defined(_WIN32) // for windows, to clean up Winsock
