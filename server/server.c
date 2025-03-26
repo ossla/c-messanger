@@ -100,7 +100,8 @@ int main() {
         }
         int is_set = 0;
 
-        for (SOCKET curr_sock = 0; curr_sock <= max_socket; ++curr_sock) {
+        SOCKET curr_sock = 0;
+        for (;curr_sock <= max_socket; ++curr_sock) {
             if (FD_ISSET(curr_sock, &reads)) {
                 if (curr_sock == socket_listen) {
                     is_set = 1;
